@@ -1,0 +1,13 @@
+# Dependências (muito importante para não subir gigabytes no GitHub)
+node_modules/
+
+# Arquivos de compilação
+dist/
+build/
+
+# Variáveis de ambiente com senhas
+.env
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
