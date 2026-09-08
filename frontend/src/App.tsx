@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { CheckCircle2, Clock, Plus, Trash2, BookOpen } from 'lucide-react';
+import { CheckCircle2, Clock, Plus, Trash2, BookOpen, Loader2, Filter } from 'lucide-react';
+import toast, { Toaster } from 'react-hot-toast';
 import type { Task } from './types';
 
 const API_URL = 'http://localhost:3000/api/tasks';
@@ -12,6 +13,11 @@ export function App() {
   const [estimatedMinutes, setEstimatedMinutes] = useState(30);
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<'BAIXA' | 'MEDIA' | 'ALTA'>('MEDIA');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Estados para Filtros
+  const [filterStatus, setFilterStatus] = useState<'TODAS' | 'PENDENTE' | 'CONCLUIDA'>('TODAS');
+  const [filterPriority, setFilterPriority] = useState<'TODAS' | 'BAIXA' | 'MEDIA' | 'ALTA'>('TODAS');
 
   // Buscar tarefas da API
   const fetchTasks = async () => {
@@ -20,6 +26,7 @@ export function App() {
       setTasks(response.data);
     } catch (error) {
       console.error('Erro ao buscar tarefas:', error);
+      toast.error('Erro ao carregar as tarefas.');
     }
   };
 
@@ -30,7 +37,12 @@ export function App() {
   // Criar nova tarefa
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !dueDate) return;
+    if (!title.trim() || !dueDate) {
+      toast.error('Por favor, preencha o título e o prazo.');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       await axios.post(API_URL, {
@@ -42,6 +54,8 @@ export function App() {
         category_color: '#3B82F6',
       });
 
+      toast.success('Tarefa criada com sucesso!');
+
       setTitle('');
       setDescription('');
       setEstimatedMinutes(30);
@@ -50,6 +64,9 @@ export function App() {
       fetchTasks();
     } catch (error) {
       console.error('Erro ao criar tarefa:', error);
+      toast.error('Falha ao criar tarefa.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -58,9 +75,11 @@ export function App() {
     const newStatus = task.status === 'CONCLUIDA' ? 'PENDENTE' : 'CONCLUIDA';
     try {
       await axios.put(`${API_URL}/${task.id}`, { status: newStatus });
+      toast.success(newStatus === 'CONCLUIDA' ? 'Tarefa concluída!' : 'Tarefa reaberta!');
       fetchTasks();
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
+      toast.error('Erro ao atualizar tarefa.');
     }
   };
 
@@ -68,14 +87,31 @@ export function App() {
   const handleDeleteTask = async (id: number) => {
     try {
       await axios.delete(`${API_URL}/${id}`);
+      toast.success('Tarefa removida!');
       fetchTasks();
     } catch (error) {
       console.error('Erro ao deletar tarefa:', error);
+      toast.error('Erro ao deletar tarefa.');
     }
   };
 
+  // Lógica de filtragem no Frontend
+  const filteredTasks = tasks.filter((task) => {
+    const matchesStatus =
+      filterStatus === 'TODAS' ||
+      (filterStatus === 'PENDENTE' && task.status !== 'CONCLUIDA') ||
+      (filterStatus === 'CONCLUIDA' && task.status === 'CONCLUIDA');
+
+    const matchesPriority =
+      filterPriority === 'TODAS' || task.priority === filterPriority;
+
+    return matchesStatus && matchesPriority;
+  });
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6 font-sans">
+      <Toaster position="top-right" toastOptions={{ style: { background: '#1e293b', color: '#f8fafc' } }} />
+
       <div className="max-w-4xl mx-auto space-y-8">
         
         {/* Header */}
@@ -129,7 +165,7 @@ export function App() {
 
               <select
                 value={priority}
-                onChange={(e) => setPriority(e.target.value as any)}
+                onChange={(e) => setPriority(e.target.value as 'BAIXA' | 'MEDIA' | 'ALTA')}
                 className="bg-slate-800 border border-slate-700 rounded p-1.5 text-xs focus:outline-none"
               >
                 <option value="BAIXA">Prioridade Baixa</option>
@@ -140,21 +176,83 @@ export function App() {
 
             <button
               type="submit"
-              className="bg-blue-600 hover:bg-blue-500 font-medium text-sm py-2 px-4 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+              disabled={isSubmitting}
+              className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 font-medium text-sm py-2 px-4 rounded-lg flex items-center gap-2 transition-colors cursor-pointer disabled:cursor-not-allowed"
             >
-              <Plus className="w-4 h-4" /> Adicionar
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Salvando...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" /> Adicionar
+                </>
+              )}
             </button>
           </div>
         </form>
 
-        {/* Lista de tarefas */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-slate-200">Minhas Tarefas ({tasks.length})</h2>
+        {/* Painel de Filtros e Lista */}
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-2 text-slate-400 text-xs font-medium">
+              <Filter className="w-4 h-4" />
+              <span>Filtros:</span>
+            </div>
 
-          {tasks.length === 0 ? (
-            <p className="text-slate-500 text-sm italic">Nenhuma tarefa cadastrada ainda.</p>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Botões de Status */}
+              <div className="flex rounded-lg bg-slate-800 p-1 text-xs">
+                <button
+                  onClick={() => setFilterStatus('TODAS')}
+                  className={`px-2.5 py-1 rounded-md transition-colors ${
+                    filterStatus === 'TODAS' ? 'bg-blue-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Todas
+                </button>
+                <button
+                  onClick={() => setFilterStatus('PENDENTE')}
+                  className={`px-2.5 py-1 rounded-md transition-colors ${
+                    filterStatus === 'PENDENTE' ? 'bg-blue-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Pendentes
+                </button>
+                <button
+                  onClick={() => setFilterStatus('CONCLUIDA')}
+                  className={`px-2.5 py-1 rounded-md transition-colors ${
+                    filterStatus === 'CONCLUIDA' ? 'bg-blue-600 text-white font-medium' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Concluídas
+                </button>
+              </div>
+
+              {/* Select de Prioridade */}
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value as any)}
+                className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-300 focus:outline-none"
+              >
+                <option value="TODAS">Todas as Prioridades</option>
+                <option value="ALTA">Alta Prioridade</option>
+                <option value="MEDIA">Média Prioridade</option>
+                <option value="BAIXA">Baixa Prioridade</option>
+              </select>
+            </div>
+          </div>
+
+          <h2 className="text-lg font-semibold text-slate-200">
+            Minhas Tarefas ({filteredTasks.length})
+          </h2>
+
+          {filteredTasks.length === 0 ? (
+            <p className="text-slate-500 text-sm italic py-4 text-center">
+              Nenhuma tarefa encontrada para os filtros selecionados.
+            </p>
           ) : (
-            tasks.map((task) => (
+            filteredTasks.map((task) => (
               <div
                 key={task.id}
                 className={`p-4 rounded-xl border flex items-start justify-between transition-all ${
@@ -166,7 +264,7 @@ export function App() {
                 <div className="flex items-start gap-3">
                   <button
                     onClick={() => handleToggleStatus(task)}
-                    className="mt-1 text-slate-500 hover:text-emerald-500 transition-colors"
+                    className="mt-1 text-slate-500 hover:text-emerald-500 transition-colors cursor-pointer"
                   >
                     <CheckCircle2
                       className={`w-5 h-5 ${
@@ -191,9 +289,15 @@ export function App() {
                       <span>•</span>
                       <span>{task.estimated_minutes} min</span>
                       <span>•</span>
-                      <span className={`font-semibold ${
-                        task.priority === 'ALTA' ? 'text-rose-400' : task.priority === 'MEDIA' ? 'text-amber-400' : 'text-slate-400'
-                      }`}>
+                      <span
+                        className={`font-semibold ${
+                          task.priority === 'ALTA'
+                            ? 'text-rose-400'
+                            : task.priority === 'MEDIA'
+                            ? 'text-amber-400'
+                            : 'text-slate-400'
+                        }`}
+                      >
                         {task.priority}
                       </span>
                     </div>
@@ -202,7 +306,7 @@ export function App() {
 
                 <button
                   onClick={() => handleDeleteTask(task.id)}
-                  className="text-slate-500 hover:text-rose-500 transition-colors p-1"
+                  className="text-slate-500 hover:text-rose-500 transition-colors p-1 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
