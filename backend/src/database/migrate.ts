@@ -27,12 +27,16 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- Inserir usuário padrão para testes
+INSERT OR IGNORE INTO users (id, name, email, password_hash, profile_type)
+VALUES (1, 'Usuário Teste', 'teste@helpstudy.com', 'hash_ficticia', 'STUDENT');
 `;
 
 function runMigrations() {
   try {
     db.exec(createTablesSQL);
-    console.log('✅ Tabelas criadas com sucesso no SQLite!');
+    console.log('✅ Tabelas e usuário padrão criados com sucesso!');
   } catch (error) {
     console.error('❌ Erro ao criar tabelas:', error);
   }
