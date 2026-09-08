@@ -1,13 +1,24 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { db } from '../database/db';
+import { AuthRequest } from '../middlewares/authMiddleware';
 
-// 1. Criar uma nova tarefa
-export const createTask = (req: Request, res: Response) => {
+// Listar tarefas do usuário logado
+export const getTasks = (req: AuthRequest, res: Response) => {
   try {
-    const { title, description, category_color, estimated_minutes, due_date, priority } = req.body;
+    const userId = req.userId;
+    const tasks = db.prepare('SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+    res.json(tasks);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erro ao buscar tarefas.' });
+  }
+};
 
-    // Usuário fixo (1) apenas para testes da Semana 1
-    const userId = 1;
+// Criar tarefa vinculada ao usuário logado
+export const createTask = (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+    const { title, description, category_color, estimated_minutes, due_date, priority } = req.body;
 
     const stmt = db.prepare(`
       INSERT INTO tasks (user_id, title, description, category_color, estimated_minutes, due_date, priority)
@@ -19,7 +30,7 @@ export const createTask = (req: Request, res: Response) => {
       title,
       description || null,
       category_color || '#3B82F6',
-      estimated_minutes,
+      Number(estimated_minutes) || 30,
       due_date,
       priority || 'MEDIA'
     );
@@ -34,79 +45,43 @@ export const createTask = (req: Request, res: Response) => {
   }
 };
 
-// 2. Listar todas as tarefas
-export const getTasks = (_req: Request, res: Response) => {
+// Atualizar status (Pendentes/Concluídas) garantindo pertencimento ao usuário
+export const updateTaskStatus = (req: AuthRequest, res: Response) => {
   try {
-    const stmt = db.prepare('SELECT * FROM tasks ORDER BY created_at DESC');
-    const tasks = stmt.all();
+    const userId = req.userId;
+    const { id } = req.params;
+    const { status } = req.body;
 
-    res.status(200).json(tasks);
+    const stmt = db.prepare('UPDATE tasks SET status = ? WHERE id = ? AND user_id = ?');
+    const result = stmt.run(status, id, userId);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Tarefa não encontrada ou não autorizada.' });
+    }
+
+    res.json({ message: 'Status atualizado com sucesso!' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Erro ao buscar tarefas.' });
+    res.status(500).json({ error: 'Erro ao atualizar tarefa.' });
   }
 };
 
-// 3. Buscar uma tarefa específica por ID
-export const getTaskById = (req: Request, res: Response) => {
+// Deletar tarefa garantindo pertencimento ao usuário
+export const deleteTask = (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.userId;
     const { id } = req.params;
-    const stmt = db.prepare('SELECT * FROM tasks WHERE id = ?');
-    const task = stmt.get(id);
 
-    if (!task) return res.status(404).json({ error: 'Tarefa não encontrada.' });
+    const stmt = db.prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?');
+    const result = stmt.run(id, userId);
 
-    res.status(200).json(task);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Tarefa não encontrada ou não autorizada.' });
+    }
+
+    res.json({ message: 'Tarefa deletada com sucesso!' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Erro ao buscar a tarefa.' });
-  }
-};
-
-// 4. Atualizar uma tarefa (ex: marcar como concluída)
-export const updateTask = (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { title, description, status, priority } = req.body;
-
-    // Busca a tarefa atual primeiro para não apagar dados sem querer
-    const currentTask: any = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
-    
-    if (!currentTask) return res.status(404).json({ error: 'Tarefa não encontrada.' });
-
-    const stmt = db.prepare(`
-      UPDATE tasks 
-      SET title = ?, description = ?, status = ?, priority = ?
-      WHERE id = ?
-    `);
-
-    stmt.run(
-      title || currentTask.title,
-      description !== undefined ? description : currentTask.description,
-      status || currentTask.status,
-      priority || currentTask.priority,
-      id
-    );
-
-    res.status(200).json({ message: 'Tarefa atualizada com sucesso!' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erro ao atualizar a tarefa.' });
-  }
-};
-
-// 5. Deletar uma tarefa
-export const deleteTask = (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
-    const result = stmt.run(id);
-
-    if (result.changes === 0) return res.status(404).json({ error: 'Tarefa não encontrada.' });
-
-    res.status(200).json({ message: 'Tarefa deletada com sucesso!' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erro ao deletar a tarefa.' });
+    res.status(500).json({ error: 'Erro ao deletar tarefa.' });
   }
 };

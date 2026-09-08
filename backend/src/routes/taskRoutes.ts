@@ -1,12 +1,15 @@
 import { Router } from 'express';
-import { createTask, getTasks, getTaskById, updateTask, deleteTask } from '../controllers/taskController';
+import { getTasks, createTask, updateTaskStatus, deleteTask } from '../controllers/taskController';
+import { authMiddleware } from '../middlewares/authMiddleware';
 
 const router = Router();
 
-router.post('/tasks', createTask);
+// Aplica o middleware em todas as rotas de tarefas abaixo
+router.use(authMiddleware);
+
 router.get('/tasks', getTasks);
-router.get('/tasks/:id', getTaskById);
-router.put('/tasks/:id', updateTask);
+router.post('/tasks', createTask);
+router.put('/tasks/:id', updateTaskStatus);
 router.delete('/tasks/:id', deleteTask);
 
 export default router;
