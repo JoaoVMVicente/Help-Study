@@ -1,18 +1,25 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import taskRoutes from './routes/taskRoutes';
 
 dotenv.config();
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', (req, res) => {
+// Rota de Health Check
+app.get('/health', (_req, res) => {
   return res.json({ status: 'ok', message: 'Help Study API is running' });
 });
 
+// Registrar as rotas da API
+app.use('/api', taskRoutes);
+
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
