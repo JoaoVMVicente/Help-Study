@@ -19,7 +19,8 @@ export function Auth({ onLoginSuccess }: AuthProps) {
     e.preventDefault();
     setIsLoading(true);
 
-    const endpoint = isLogin ? 'http://localhost:3000/api/auth/login' : 'http://localhost:3000/api/auth/register';
+    const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+    const endpoint = isLogin ? `${BASE_URL}/auth/login` : `${BASE_URL}/auth/register`;
 
     try {
       if (isLogin) {

@@ -5,7 +5,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import type { Task, User } from './types';
 import { Auth } from './components/Auth';
 
-const API_URL = 'http://localhost:3000/api/tasks';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = `${BASE_URL}/tasks`;
 
 export function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('@helpstudy:token'));
